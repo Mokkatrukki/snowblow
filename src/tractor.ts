@@ -27,16 +27,29 @@ export class Tractor {
     private rearWheelHeight: number; // Height of rear wheels
     private frontWheelWidth: number; // Width of front wheels
     private frontWheelHeight: number; // Height of front wheels
+    
+    // New physics-based steering properties
+    private wheelBase: number; // Distance between front and rear wheels
+    private velocity: { x: number, y: number }; // Current velocity vector
+    private acceleration: number; // Forward acceleration
+    private enginePower: number; // Forward acceleration force
+    private braking: number; // Braking force
+    private friction: number; // Friction force (proportional to velocity)
+    private drag: number; // Drag force (proportional to velocity squared)
+    private maxSpeedReverse: number; // Maximum reverse speed
+    private slipSpeed: number; // Speed where traction is reduced
+    private tractionFast: number; // High-speed traction
+    private tractionSlow: number; // Low-speed traction
 
     constructor(x: number, y: number) {
         this.x = x;
         this.y = y;
         this.width = 40;
         this.height = 60;
-        this.speed = 3;
+        this.speed = 0; // Initial speed is 0
         this.angle = 0; // in radians
         this.wheelAngle = 0; // in radians
-        this.maxWheelAngle = Math.PI / 3; // 60 degrees - increased from 45 for better turning
+        this.maxWheelAngle = Math.PI / 4; // 45 degrees
         this.wheelTurnSpeed = 0.1; // Base turn speed
         this.stationaryTurnSpeed = 0.12; // Faster turning when stationary
         this.movingTurnSpeed = 0.07; // Slower, smoother turning when moving
@@ -57,6 +70,19 @@ export class Tractor {
         this.rearWheelHeight = 20; // Taller rear wheels
         this.frontWheelWidth = 10; // Front wheels width
         this.frontWheelHeight = 14; // Front wheels height
+        
+        // Initialize new physics properties
+        this.wheelBase = 40; // Distance from front to rear wheel
+        this.velocity = { x: 0, y: 0 }; // Start with zero velocity
+        this.acceleration = 0;
+        this.enginePower = 300; // Forward acceleration force
+        this.braking = -150; // Braking force
+        this.friction = -0.9; // Friction force coefficient
+        this.drag = -0.001; // Drag force coefficient
+        this.maxSpeedReverse = 100; // Maximum reverse speed
+        this.slipSpeed = 200; // Speed where traction is reduced
+        this.tractionFast = 0.02; // High-speed traction (lower = more drift)
+        this.tractionSlow = 0.05; // Low-speed traction (higher = less drift)
     }
 
     public setMovement(direction: 'forward' | 'backward' | 'none', state: boolean): void {
@@ -76,52 +102,32 @@ export class Tractor {
     }
 
     public update(): void {
-        const isMoving = this.isMovingForward || this.isMovingBackward;
+        // Calculate acceleration based on input
+        this.acceleration = 0;
         
-        // Use different turn speeds based on whether the tractor is moving or stationary
-        const currentTurnSpeed = isMoving ? this.movingTurnSpeed : this.stationaryTurnSpeed;
+        // Get steering input
+        this.updateSteering();
         
-        // Update wheel angle based on turning input
-        if (this.isTurningLeft) {
-            this.wheelAngle = Math.max(this.wheelAngle - currentTurnSpeed, -this.maxWheelAngle);
-        } else if (this.isTurningRight) {
-            this.wheelAngle = Math.min(this.wheelAngle + currentTurnSpeed, this.maxWheelAngle);
-        } else {
-            // Return wheels to center when not turning
-            if (this.wheelAngle > 0) {
-                this.wheelAngle = Math.max(0, this.wheelAngle - currentTurnSpeed / 2);
-            } else if (this.wheelAngle < 0) {
-                this.wheelAngle = Math.min(0, this.wheelAngle + currentTurnSpeed / 2);
-            }
-        }
-
-        // Only turn the tractor if it's moving
-        if (isMoving && this.wheelAngle !== 0) {
-            // Calculate turn rate based on wheel angle and movement direction
-            // Use a smoother turn rate when moving
-            const turnRate = this.wheelAngle * 0.04; // Reduced from 0.05 for smoother turning
-            
-            // Apply gradual turning based on speed
-            const speedFactor = Math.min(1.0, this.speed / 3.0); // Normalize speed factor
-            const adjustedTurnRate = turnRate * speedFactor;
-            
-            if (this.isMovingForward) {
-                this.angle += adjustedTurnRate;
-            } else if (this.isMovingBackward) {
-                this.angle -= adjustedTurnRate; // Reverse steering when going backward
-            }
-        }
-
-        // Handle movement
+        // Apply acceleration based on input
         if (this.isMovingForward) {
-            this.x += Math.sin(this.angle) * this.speed;
-            this.y -= Math.cos(this.angle) * this.speed;
+            this.acceleration = this.enginePower;
+        } else if (this.isMovingBackward) {
+            this.acceleration = this.braking;
         }
-        if (this.isMovingBackward) {
-            this.x -= Math.sin(this.angle) * this.speed;
-            this.y += Math.cos(this.angle) * this.speed;
-        }
-
+        
+        // Apply friction and drag
+        this.applyFriction();
+        
+        // Calculate steering based on wheel positions
+        this.calculateSteering();
+        
+        // Update position based on velocity
+        this.x += this.velocity.x;
+        this.y += this.velocity.y;
+        
+        // Calculate speed from velocity
+        this.speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+        
         // Update warning light - just rotate, no blinking
         this.warningLightAngle += 0.1;
         if (this.warningLightAngle > Math.PI * 2) {
@@ -158,6 +164,126 @@ export class Tractor {
                 this.smokeParticles.splice(i, 1);
             }
         }
+    }
+    
+    private updateSteering(): void {
+        // Use different turn speeds based on whether the tractor is moving or stationary
+        const isMoving = this.speed > 0.5;
+        const currentTurnSpeed = isMoving ? this.movingTurnSpeed : this.stationaryTurnSpeed;
+        
+        // Update wheel angle based on turning input
+        if (this.isTurningLeft) {
+            this.wheelAngle = Math.max(this.wheelAngle - currentTurnSpeed, -this.maxWheelAngle);
+        } else if (this.isTurningRight) {
+            this.wheelAngle = Math.min(this.wheelAngle + currentTurnSpeed, this.maxWheelAngle);
+        } else {
+            // Return wheels to center when not turning
+            if (this.wheelAngle > 0) {
+                this.wheelAngle = Math.max(0, this.wheelAngle - currentTurnSpeed / 2);
+            } else if (this.wheelAngle < 0) {
+                this.wheelAngle = Math.min(0, this.wheelAngle + currentTurnSpeed / 2);
+            }
+        }
+    }
+    
+    private applyFriction(): void {
+        // If no acceleration and very low speed, stop completely
+        if (this.acceleration === 0 && this.speed < 0.5) {
+            this.velocity.x = 0;
+            this.velocity.y = 0;
+            return;
+        }
+        
+        // Calculate friction force (proportional to velocity)
+        const frictionForce = {
+            x: this.velocity.x * this.friction,
+            y: this.velocity.y * this.friction
+        };
+        
+        // Calculate drag force (proportional to velocity squared)
+        const dragForce = {
+            x: this.velocity.x * this.speed * this.drag,
+            y: this.velocity.y * this.speed * this.drag
+        };
+        
+        // Apply forces to velocity
+        this.velocity.x += frictionForce.x + dragForce.x;
+        this.velocity.y += frictionForce.y + dragForce.y;
+    }
+    
+    private calculateSteering(): void {
+        // Find the wheel positions
+        const rearWheel = {
+            x: this.x - Math.sin(this.angle) * (this.wheelBase / 2),
+            y: this.y + Math.cos(this.angle) * (this.wheelBase / 2)
+        };
+        
+        const frontWheel = {
+            x: this.x + Math.sin(this.angle) * (this.wheelBase / 2),
+            y: this.y - Math.cos(this.angle) * (this.wheelBase / 2)
+        };
+        
+        // Apply acceleration in the direction the tractor is facing
+        const accelerationVector = {
+            x: Math.sin(this.angle) * this.acceleration,
+            y: -Math.cos(this.angle) * this.acceleration
+        };
+        
+        // Add acceleration to velocity
+        this.velocity.x += accelerationVector.x;
+        this.velocity.y += accelerationVector.y;
+        
+        // Move wheels forward
+        rearWheel.x += this.velocity.x;
+        rearWheel.y += this.velocity.y;
+        
+        // Calculate front wheel position with steering
+        const steeringDirection = this.angle + this.wheelAngle;
+        frontWheel.x += this.velocity.x * Math.cos(this.wheelAngle) + 
+                        this.velocity.y * Math.sin(this.wheelAngle);
+        frontWheel.y += this.velocity.y * Math.cos(this.wheelAngle) - 
+                        this.velocity.x * Math.sin(this.wheelAngle);
+        
+        // Find new heading direction
+        const newHeading = Math.atan2(
+            frontWheel.x - rearWheel.x,
+            -(frontWheel.y - rearWheel.y)
+        );
+        
+        // Choose traction based on speed
+        const traction = this.speed > this.slipSpeed ? this.tractionFast : this.tractionSlow;
+        
+        // Check if we're moving forward or backward
+        const velocityMagnitude = this.speed;
+        const velocityDirection = Math.atan2(this.velocity.x, -this.velocity.y);
+        const headingDot = Math.cos(velocityDirection - this.angle);
+        
+        if (headingDot >= 0) {
+            // Moving forward - gradually adjust velocity toward new heading
+            const newVelocityDirection = newHeading;
+            const newVelocity = {
+                x: Math.sin(newVelocityDirection) * velocityMagnitude,
+                y: -Math.cos(newVelocityDirection) * velocityMagnitude
+            };
+            
+            // Interpolate between current velocity and new velocity based on traction
+            this.velocity.x = this.velocity.x * (1 - traction) + newVelocity.x * traction;
+            this.velocity.y = this.velocity.y * (1 - traction) + newVelocity.y * traction;
+        } else {
+            // Moving backward - reverse steering
+            const newVelocityDirection = newHeading + Math.PI;
+            const newVelocity = {
+                x: Math.sin(newVelocityDirection) * Math.min(velocityMagnitude, this.maxSpeedReverse),
+                y: -Math.cos(newVelocityDirection) * Math.min(velocityMagnitude, this.maxSpeedReverse)
+            };
+            
+            // Interpolate between current velocity and new velocity based on traction
+            this.velocity.x = this.velocity.x * (1 - traction) + newVelocity.x * traction;
+            this.velocity.y = this.velocity.y * (1 - traction) + newVelocity.y * traction;
+        }
+        
+        // Update tractor angle to match new heading
+        this.angle = newHeading;
     }
 
     public draw(ctx: CanvasRenderingContext2D): void {
