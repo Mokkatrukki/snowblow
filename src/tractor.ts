@@ -24,6 +24,10 @@ export class Tractor {
     private auraTurnSpeed: number; // How fast the snow plow turns
     private isAuraTurningLeft: boolean; // Is the snow plow turning left
     private isAuraTurningRight: boolean; // Is the snow plow turning right
+    private isAuraLifted: boolean; // Is the snow plow lifted up
+    private auraLiftHeight: number; // How high the snow plow can be lifted
+    private auraCurrentHeight: number; // Current lift height of the snow plow
+    private auraLiftSpeed: number; // Speed at which the plow lifts/lowers
     private isMovingForward: boolean;
     private isMovingBackward: boolean;
     private isTurningLeft: boolean;
@@ -64,6 +68,10 @@ export class Tractor {
         this.auraTurnSpeed = 0.05; // How fast the snow plow turns
         this.isAuraTurningLeft = false;
         this.isAuraTurningRight = false;
+        this.isAuraLifted = false; // Plow starts in down position
+        this.auraLiftHeight = 20; // Maximum height the plow can be lifted
+        this.auraCurrentHeight = 0; // Current lift height (0 = fully down)
+        this.auraLiftSpeed = 1; // Speed at which the plow lifts/lowers
         this.isMovingForward = false;
         this.isMovingBackward = false;
         this.isTurningLeft = false;
@@ -102,6 +110,16 @@ export class Tractor {
             this.isAuraTurningRight = state;
         }
     }
+    
+    public toggleAuraLift(): void {
+        // Toggle between lifted and lowered states
+        this.isAuraLifted = !this.isAuraLifted;
+    }
+    
+    public setAuraLift(lifted: boolean): void {
+        // Directly set the lift state
+        this.isAuraLifted = lifted;
+    }
 
     public update(): void {
         // Update wheel angle based on turning input
@@ -109,6 +127,9 @@ export class Tractor {
         
         // Update snow plow angle
         this.updateAuraAngle();
+        
+        // Update snow plow height
+        this.updateAuraHeight();
         
         // Calculate speed based on input
         let currentSpeed = 0;
@@ -218,6 +239,17 @@ export class Tractor {
             */
         }
     }
+    
+    private updateAuraHeight(): void {
+        // Update snow plow height based on lift state
+        if (this.isAuraLifted && this.auraCurrentHeight < this.auraLiftHeight) {
+            // Lift the plow - slower speed for more subtle movement
+            this.auraCurrentHeight = Math.min(this.auraCurrentHeight + this.auraLiftSpeed * 0.5, this.auraLiftHeight);
+        } else if (!this.isAuraLifted && this.auraCurrentHeight > 0) {
+            // Lower the plow - slower speed for more subtle movement
+            this.auraCurrentHeight = Math.max(this.auraCurrentHeight - this.auraLiftSpeed * 0.5, 0);
+        }
+    }
 
     public draw(ctx: CanvasRenderingContext2D): void {
         ctx.save();
@@ -226,53 +258,85 @@ export class Tractor {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         
-        // Draw snow plow (aura) at the front with its own rotation
+        // Draw shadow for the plow when lifted
+        if (this.isAuraLifted) {
+            ctx.save();
+            // Position shadow at the front of the tractor, with shadow offset
+            ctx.translate(0, -this.height / 2 - this.auraHeight / 2 + 5); // Shadow is slightly below actual plow
+            // Apply the aura's rotation
+            ctx.rotate(this.auraAngle);
+            
+            // Draw shadow with transparency
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.fillRect(-this.auraWidth / 2, -this.auraHeight / 2, this.auraWidth, this.auraHeight);
+            
+            ctx.restore();
+        }
+        
+        // Draw rear wheels (fixed orientation) - now bigger
+        ctx.fillStyle = '#333';
+        
+        // Left rear wheel
+        ctx.fillRect(-this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2, 
+                    this.rearWheelWidth, this.rearWheelHeight);
+        
+        // Add wheel rim details for left wheel - rectangular pattern for top-down view
+        ctx.strokeStyle = '#777';
+        ctx.lineWidth = 1;
+        // Horizontal lines for tread pattern
+        for (let i = 1; i < 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.lineTo(-this.width / 2 + this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.stroke();
+        }
+        
+        // Right rear wheel
+        ctx.fillRect(this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2, 
+                    this.rearWheelWidth, this.rearWheelHeight);
+        
+        // Add wheel rim details for right wheel - rectangular pattern for top-down view
+        // Horizontal lines for tread pattern
+        for (let i = 1; i < 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.lineTo(this.width / 2 + this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.stroke();
+        }
+        
+        // Draw front wheels (with steering)
         ctx.save();
-        // Position at the front of the tractor
-        ctx.translate(0, -this.height / 2 - this.auraHeight / 2);
-        // Apply the aura's rotation
-        ctx.rotate(this.auraAngle);
+        // Front left wheel
+        ctx.translate(-this.width / 2, -this.height / 4);
+        ctx.rotate(this.wheelAngle);
+        ctx.fillRect(-this.frontWheelWidth/2, -this.frontWheelHeight/2, 
+                    this.frontWheelWidth, this.frontWheelHeight);
         
-        ctx.fillStyle = this.auraColor;
-        // Main plow body
-        ctx.fillRect(-this.auraWidth / 2, -this.auraHeight / 2, this.auraWidth, this.auraHeight);
+        // Add rectangular tread pattern for front left wheel
+        ctx.strokeStyle = '#777';
+        for (let i = 1; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.lineTo(this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.stroke();
+        }
+        ctx.restore();
         
-        // Draw angled edges for the plow
-        ctx.beginPath();
-        ctx.moveTo(-this.auraWidth / 2, -this.auraHeight / 2);
-        ctx.lineTo(-this.auraWidth / 2 - 10, this.auraHeight / 2);
-        ctx.lineTo(-this.auraWidth / 2, this.auraHeight / 2);
-        ctx.closePath();
-        ctx.fill();
+        ctx.save();
+        // Front right wheel
+        ctx.translate(this.width / 2, -this.height / 4);
+        ctx.rotate(this.wheelAngle);
+        ctx.fillRect(-this.frontWheelWidth/2, -this.frontWheelHeight/2, 
+                    this.frontWheelWidth, this.frontWheelHeight);
         
-        ctx.beginPath();
-        ctx.moveTo(this.auraWidth / 2, -this.auraHeight / 2);
-        ctx.lineTo(this.auraWidth / 2 + 10, this.auraHeight / 2);
-        ctx.lineTo(this.auraWidth / 2, this.auraHeight / 2);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Add some details to the plow
-        ctx.strokeStyle = '#2667FF';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-this.auraWidth / 2 + 5, 0);
-        ctx.lineTo(this.auraWidth / 2 - 5, 0);
-        ctx.stroke();
-        
-        // Draw hydraulic arms connecting the plow to the tractor
-        ctx.strokeStyle = '#555';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        // Left arm
-        ctx.moveTo(-this.auraWidth / 3, this.auraHeight / 2);
-        ctx.lineTo(-this.width / 3, this.auraHeight * 2);
-        // Right arm
-        ctx.moveTo(this.auraWidth / 3, this.auraHeight / 2);
-        ctx.lineTo(this.width / 3, this.auraHeight * 2);
-        ctx.stroke();
-        
-        ctx.restore(); // Restore after drawing the rotated plow
+        // Add rectangular tread pattern for front right wheel
+        for (let i = 1; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.lineTo(this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.stroke();
+        }
+        ctx.restore();
         
         // Draw tractor body
         ctx.fillStyle = this.color;
@@ -346,84 +410,129 @@ export class Tractor {
             ctx.fill();
         }
         
-        // Draw rear wheels (fixed orientation) - now bigger
-        ctx.fillStyle = '#333';
-        
-        // Left rear wheel
-        ctx.fillRect(-this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2, 
-                    this.rearWheelWidth, this.rearWheelHeight);
-        
-        // Add wheel rim details for left wheel - rectangular pattern for top-down view
-        ctx.strokeStyle = '#777';
-        ctx.lineWidth = 1;
-        // Horizontal lines for tread pattern
-        for (let i = 1; i < 4; i++) {
-            ctx.beginPath();
-            ctx.moveTo(-this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
-            ctx.lineTo(-this.width / 2 + this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
-            ctx.stroke();
-        }
-        
-        // Right rear wheel
-        ctx.fillRect(this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2, 
-                    this.rearWheelWidth, this.rearWheelHeight);
-        
-        // Add wheel rim details for right wheel - rectangular pattern for top-down view
-        // Horizontal lines for tread pattern
-        for (let i = 1; i < 4; i++) {
-            ctx.beginPath();
-            ctx.moveTo(this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
-            ctx.lineTo(this.width / 2 + this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
-            ctx.stroke();
-        }
-        
-        // Draw front wheels (with steering)
-        ctx.save();
-        // Front left wheel
-        ctx.translate(-this.width / 2, -this.height / 4);
-        ctx.rotate(this.wheelAngle);
-        ctx.fillRect(-this.frontWheelWidth/2, -this.frontWheelHeight/2, 
-                    this.frontWheelWidth, this.frontWheelHeight);
-        
-        // Add rectangular tread pattern for front left wheel
-        ctx.strokeStyle = '#777';
-        for (let i = 1; i < 3; i++) {
-            ctx.beginPath();
-            ctx.moveTo(-this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
-            ctx.lineTo(this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
-            ctx.stroke();
-        }
-        ctx.restore();
-        
-        ctx.save();
-        // Front right wheel
-        ctx.translate(this.width / 2, -this.height / 4);
-        ctx.rotate(this.wheelAngle);
-        ctx.fillRect(-this.frontWheelWidth/2, -this.frontWheelHeight/2, 
-                    this.frontWheelWidth, this.frontWheelHeight);
-        
-        // Add rectangular tread pattern for front right wheel
-        for (let i = 1; i < 3; i++) {
-            ctx.beginPath();
-            ctx.moveTo(-this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
-            ctx.lineTo(this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
-            ctx.stroke();
-        }
-        ctx.restore();
-        
         // Draw a small indicator for the front of the tractor
         ctx.fillStyle = '#FFF';
         ctx.beginPath();
         ctx.arc(0, -this.height / 2 - 5, 3, 0, Math.PI * 2);
         ctx.fill();
         
+        // Draw a "lifted" indicator when plow is up
+        if (this.isAuraLifted) {
+            ctx.fillStyle = '#FFCC00';
+            ctx.beginPath();
+            ctx.arc(cabinX + cabinWidth/2, cabinY - 10, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#FF6600';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        
+        // Draw snow plow (aura) at the front with its own rotation
+        // When lifted, draw it over the tractor (after tractor body)
+        ctx.save();
+        
+        // Calculate plow position based on lift state
+        let plowYOffset = -this.height / 2 - this.auraHeight / 2; // Base position at front
+        let plowXOffset = 0;
+        
+        if (this.isAuraLifted) {
+            // When lifted, move plow back over the tractor
+            plowYOffset = -this.height / 4; // Move back over the front of the tractor
+            plowXOffset = 0; // Keep centered
+        }
+        
+        // Position the plow
+        ctx.translate(plowXOffset, plowYOffset - this.auraCurrentHeight / 2);
+        // Apply the aura's rotation
+        ctx.rotate(this.auraAngle);
+        
+        // Change color slightly when lifted to indicate it's not in contact with ground
+        if (this.isAuraLifted) {
+            ctx.fillStyle = '#5A9AFF'; // Lighter blue when lifted
+        } else {
+            ctx.fillStyle = this.auraColor;
+        }
+        
+        // Main plow body
+        ctx.fillRect(-this.auraWidth / 2, -this.auraHeight / 2, this.auraWidth, this.auraHeight);
+        
+        // Draw angled edges for the plow
+        ctx.beginPath();
+        ctx.moveTo(-this.auraWidth / 2, -this.auraHeight / 2);
+        ctx.lineTo(-this.auraWidth / 2 - 10, this.auraHeight / 2);
+        ctx.lineTo(-this.auraWidth / 2, this.auraHeight / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        ctx.beginPath();
+        ctx.moveTo(this.auraWidth / 2, -this.auraHeight / 2);
+        ctx.lineTo(this.auraWidth / 2 + 10, this.auraHeight / 2);
+        ctx.lineTo(this.auraWidth / 2, this.auraHeight / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add some details to the plow
+        ctx.strokeStyle = '#2667FF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-this.auraWidth / 2 + 5, 0);
+        ctx.lineTo(this.auraWidth / 2 - 5, 0);
+        ctx.stroke();
+        
+        // Draw hydraulic arms connecting the plow to the tractor
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        
+        // Calculate arm connection points based on lift state
+        let tractorConnectionY = this.auraHeight * 2;
+        if (this.isAuraLifted) {
+            tractorConnectionY = this.auraHeight * 1.5;
+        }
+        
+        // Left arm - adjust for lift height
+        ctx.moveTo(-this.auraWidth / 3, this.auraHeight / 2);
+        ctx.lineTo(-this.width / 3, tractorConnectionY);
+        // Right arm - adjust for lift height
+        ctx.moveTo(this.auraWidth / 3, this.auraHeight / 2);
+        ctx.lineTo(this.width / 3, tractorConnectionY);
+        ctx.stroke();
+        
+        // When lifted, add visual indicators for hydraulic pistons
+        if (this.isAuraLifted) {
+            // Draw hydraulic pistons (visible when lifted)
+            ctx.strokeStyle = '#777';
+            ctx.lineWidth = 4;
+            
+            // Left piston
+            ctx.beginPath();
+            ctx.moveTo(-this.auraWidth / 3 + 2, this.auraHeight / 2 + 2);
+            ctx.lineTo(-this.width / 3 + 2, tractorConnectionY - 5);
+            ctx.stroke();
+            
+            // Right piston
+            ctx.beginPath();
+            ctx.moveTo(this.auraWidth / 3 - 2, this.auraHeight / 2 + 2);
+            ctx.lineTo(this.width / 3 - 2, tractorConnectionY - 5);
+            ctx.stroke();
+        }
+        
+        ctx.restore(); // Restore after drawing the rotated plow
+        
         ctx.restore();
     }
 
     public getAuraPosition(): { x: number, y: number, width: number, height: number, angle: number } {
         // Calculate the position of the aura based on the tractor's position and angle
-        const auraX = this.x + Math.sin(this.angle) * (this.height / 2 + this.auraHeight / 2);
-        const auraY = this.y - Math.cos(this.angle) * (this.height / 2 + this.auraHeight / 2);
+        let offsetDistance = this.height / 2 + this.auraHeight / 2;
+        
+        // When lifted, the plow is positioned differently
+        if (this.isAuraLifted) {
+            offsetDistance = this.height / 4; // Positioned over the front of the tractor
+        }
+        
+        const auraX = this.x + Math.sin(this.angle) * offsetDistance;
+        const auraY = this.y - Math.cos(this.angle) * offsetDistance;
         
         // Include both the tractor angle and the aura's own angle
         const totalAngle = this.angle + this.auraAngle;
@@ -450,5 +559,13 @@ export class Tractor {
     
     public getAuraAngle(): number {
         return this.auraAngle;
+    }
+    
+    public isPlowLifted(): boolean {
+        return this.isAuraLifted;
+    }
+    
+    public getAuraHeight(): number {
+        return this.auraCurrentHeight;
     }
 } 

@@ -122,6 +122,11 @@ export class Game {
                 case 'ArrowRight':
                     this.tractor.setAuraTurning('right', true);
                     break;
+                
+                // Toggle snow plow lift with space key
+                case ' ': // Space key
+                    this.tractor.toggleAuraLift();
+                    break;
             }
         });
 
@@ -190,15 +195,17 @@ export class Game {
         // Update snow
         this.snowSystem.update();
         
-        // Handle collisions between tractor's plow and snow
-        const auraPosition = this.tractor.getAuraPosition();
-        this.snowSystem.handleCollisionWithPlow(
-            auraPosition.x,
-            auraPosition.y,
-            auraPosition.width,
-            auraPosition.height,
-            auraPosition.angle
-        );
+        // Handle collisions between tractor's plow and snow ONLY when plow is down
+        if (!this.tractor.isPlowLifted()) {
+            const auraPosition = this.tractor.getAuraPosition();
+            this.snowSystem.handleCollisionWithPlow(
+                auraPosition.x,
+                auraPosition.y,
+                auraPosition.width,
+                auraPosition.height,
+                auraPosition.angle
+            );
+        }
         
         // Check if the parking area is cleared
         if (this.parkingArea.isCleared()) {
@@ -264,11 +271,11 @@ export class Game {
         const padding = 20;
         
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillRect(padding, padding, 220, 160);
+        this.ctx.fillRect(padding, padding, 220, 180);
         
         this.ctx.strokeStyle = '#FFFFFF';
         this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(padding, padding, 220, 160);
+        this.ctx.strokeRect(padding, padding, 220, 180);
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 16px Arial';
@@ -282,10 +289,11 @@ export class Game {
         this.ctx.fillText('D - Turn Right', padding + 10, padding + 110);
         this.ctx.fillText('← - Rotate Plow Left', padding + 10, padding + 130);
         this.ctx.fillText('→ - Rotate Plow Right', padding + 10, padding + 150);
+        this.ctx.fillText('Space - Lift/Lower Plow', padding + 10, padding + 170);
         
         if (this.gameWon) {
             this.ctx.font = 'bold 14px Arial';
-            this.ctx.fillText('R - Restart Game', padding + 10, padding + 170);
+            this.ctx.fillText('R - Restart Game', padding + 10, padding + 190);
         }
     }
 } 
