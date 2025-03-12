@@ -8,7 +8,14 @@ export class Tractor {
     private wheelAngle: number; // Angle of front wheels
     private maxWheelAngle: number; // Maximum steering angle
     private wheelTurnSpeed: number; // How fast wheels turn
+    private stationaryTurnSpeed: number; // Turn speed when not moving
+    private movingTurnSpeed: number; // Turn speed when moving
     private color: string;
+    private cabinColor: string; // Color for the tractor cabin
+    private warningLightAngle: number; // Angle for rotating warning light
+    private smokeInterval: number; // Interval for smoke emission
+    private lastSmokeTime: number; // Last time smoke was emitted
+    private smokeParticles: Array<{x: number, y: number, size: number, opacity: number, speed: number}>; // Smoke particles
     private auraWidth: number; // Width of the snow plow (aura)
     private auraHeight: number; // Height of the snow plow (aura)
     private auraColor: string; // Color of the snow plow (aura)
@@ -16,6 +23,10 @@ export class Tractor {
     private isMovingBackward: boolean;
     private isTurningLeft: boolean;
     private isTurningRight: boolean;
+    private rearWheelWidth: number; // Width of rear wheels
+    private rearWheelHeight: number; // Height of rear wheels
+    private frontWheelWidth: number; // Width of front wheels
+    private frontWheelHeight: number; // Height of front wheels
 
     constructor(x: number, y: number) {
         this.x = x;
@@ -25,9 +36,16 @@ export class Tractor {
         this.speed = 3;
         this.angle = 0; // in radians
         this.wheelAngle = 0; // in radians
-        this.maxWheelAngle = Math.PI / 4; // 45 degrees
-        this.wheelTurnSpeed = 0.08;
+        this.maxWheelAngle = Math.PI / 3; // 60 degrees - increased from 45 for better turning
+        this.wheelTurnSpeed = 0.1; // Base turn speed
+        this.stationaryTurnSpeed = 0.12; // Faster turning when stationary
+        this.movingTurnSpeed = 0.07; // Slower, smoother turning when moving
         this.color = '#FF6B00'; // Orange color for the tractor
+        this.cabinColor = '#222222'; // Dark color for the cabin roof
+        this.warningLightAngle = 0;
+        this.smokeInterval = 500; // Emit smoke every 500ms
+        this.lastSmokeTime = 0;
+        this.smokeParticles = [];
         this.auraWidth = 60; // Wider than the tractor
         this.auraHeight = 15; // Height of the snow plow
         this.auraColor = '#3A86FF'; // Blue color for the snow plow
@@ -35,6 +53,10 @@ export class Tractor {
         this.isMovingBackward = false;
         this.isTurningLeft = false;
         this.isTurningRight = false;
+        this.rearWheelWidth = 14; // Wider rear wheels
+        this.rearWheelHeight = 20; // Taller rear wheels
+        this.frontWheelWidth = 10; // Front wheels width
+        this.frontWheelHeight = 14; // Front wheels height
     }
 
     public setMovement(direction: 'forward' | 'backward' | 'none', state: boolean): void {
@@ -54,29 +76,39 @@ export class Tractor {
     }
 
     public update(): void {
+        const isMoving = this.isMovingForward || this.isMovingBackward;
+        
+        // Use different turn speeds based on whether the tractor is moving or stationary
+        const currentTurnSpeed = isMoving ? this.movingTurnSpeed : this.stationaryTurnSpeed;
+        
         // Update wheel angle based on turning input
         if (this.isTurningLeft) {
-            this.wheelAngle = Math.max(this.wheelAngle - this.wheelTurnSpeed, -this.maxWheelAngle);
+            this.wheelAngle = Math.max(this.wheelAngle - currentTurnSpeed, -this.maxWheelAngle);
         } else if (this.isTurningRight) {
-            this.wheelAngle = Math.min(this.wheelAngle + this.wheelTurnSpeed, this.maxWheelAngle);
+            this.wheelAngle = Math.min(this.wheelAngle + currentTurnSpeed, this.maxWheelAngle);
         } else {
             // Return wheels to center when not turning
             if (this.wheelAngle > 0) {
-                this.wheelAngle = Math.max(0, this.wheelAngle - this.wheelTurnSpeed / 2);
+                this.wheelAngle = Math.max(0, this.wheelAngle - currentTurnSpeed / 2);
             } else if (this.wheelAngle < 0) {
-                this.wheelAngle = Math.min(0, this.wheelAngle + this.wheelTurnSpeed / 2);
+                this.wheelAngle = Math.min(0, this.wheelAngle + currentTurnSpeed / 2);
             }
         }
 
         // Only turn the tractor if it's moving
-        const isMoving = this.isMovingForward || this.isMovingBackward;
         if (isMoving && this.wheelAngle !== 0) {
             // Calculate turn rate based on wheel angle and movement direction
-            const turnRate = this.wheelAngle * 0.03;
+            // Use a smoother turn rate when moving
+            const turnRate = this.wheelAngle * 0.04; // Reduced from 0.05 for smoother turning
+            
+            // Apply gradual turning based on speed
+            const speedFactor = Math.min(1.0, this.speed / 3.0); // Normalize speed factor
+            const adjustedTurnRate = turnRate * speedFactor;
+            
             if (this.isMovingForward) {
-                this.angle += turnRate;
+                this.angle += adjustedTurnRate;
             } else if (this.isMovingBackward) {
-                this.angle -= turnRate; // Reverse steering when going backward
+                this.angle -= adjustedTurnRate; // Reverse steering when going backward
             }
         }
 
@@ -88,6 +120,43 @@ export class Tractor {
         if (this.isMovingBackward) {
             this.x -= Math.sin(this.angle) * this.speed;
             this.y += Math.cos(this.angle) * this.speed;
+        }
+
+        // Update warning light - just rotate, no blinking
+        this.warningLightAngle += 0.1;
+        if (this.warningLightAngle > Math.PI * 2) {
+            this.warningLightAngle -= Math.PI * 2;
+        }
+
+        // Update smoke particles
+        const now = Date.now();
+        if ((this.isMovingForward || this.isMovingBackward) && now - this.lastSmokeTime > this.smokeInterval) {
+            this.smokeParticles.push({
+                x: 0,
+                y: 0,
+                size: 3 + Math.random() * 3,
+                opacity: 0.7 + Math.random() * 0.3,
+                speed: 0.2 + Math.random() * 0.3
+            });
+            this.lastSmokeTime = now;
+        }
+        
+        // Update existing smoke particles
+        for (let i = this.smokeParticles.length - 1; i >= 0; i--) {
+            const particle = this.smokeParticles[i];
+            
+            // Move particle upward and slightly to the side
+            particle.y -= particle.speed;
+            particle.x += (Math.random() - 0.5) * 0.5;
+            
+            // Increase size and reduce opacity as it rises
+            particle.size += 0.1;
+            particle.opacity -= 0.01;
+            
+            // Remove particles that have faded out
+            if (particle.opacity <= 0) {
+                this.smokeParticles.splice(i, 1);
+            }
         }
     }
 
@@ -130,24 +199,137 @@ export class Tractor {
         ctx.fillStyle = this.color;
         ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
         
-        // Draw rear wheels (fixed orientation)
+        // Draw cabin (roof from top-down view) - smaller and between rear tires
+        ctx.fillStyle = this.cabinColor;
+        const cabinWidth = this.width * 0.5; // Smaller width
+        const cabinHeight = this.height * 0.3; // Smaller height
+        const cabinX = -cabinWidth / 2;
+        const cabinY = this.height / 8; // Position between rear tires
+        
+        // Main cabin roof (simple rectangle for top-down view)
+        ctx.fillRect(cabinX, cabinY, cabinWidth, cabinHeight);
+        
+        // Add some detail lines to the roof to show panels
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        // Cross lines on roof
+        ctx.moveTo(cabinX, cabinY + cabinHeight / 2);
+        ctx.lineTo(cabinX + cabinWidth, cabinY + cabinHeight / 2);
+        ctx.moveTo(cabinX + cabinWidth / 2, cabinY);
+        ctx.lineTo(cabinX + cabinWidth / 2, cabinY + cabinHeight);
+        ctx.stroke();
+        
+        // Draw warning light on top of cabin - always on
+        // Warning light base
         ctx.fillStyle = '#333';
-        ctx.fillRect(-this.width / 2 - 5, this.height / 4 - 6, 10, 12);
-        ctx.fillRect(this.width / 2 - 5, this.height / 4 - 6, 10, 12);
+        const lightBaseSize = 6; // Slightly smaller
+        ctx.fillRect(cabinX + cabinWidth/2 - lightBaseSize/2, cabinY + cabinHeight/2 - lightBaseSize/2, 
+                    lightBaseSize, lightBaseSize);
+        
+        // Rotating warning light beam
+        ctx.fillStyle = '#FFAA00'; // Amber color for warning light
+        ctx.beginPath();
+        ctx.moveTo(cabinX + cabinWidth/2, cabinY + cabinHeight/2);
+        ctx.arc(cabinX + cabinWidth/2, cabinY + cabinHeight/2, 10, 
+                this.warningLightAngle - Math.PI/4, this.warningLightAngle + Math.PI/4);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Light dome
+        ctx.fillStyle = '#FF5500'; // Orange-red for the light itself
+        ctx.beginPath();
+        ctx.arc(cabinX + cabinWidth/2, cabinY + cabinHeight/2, 4, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw smoke pipe (circular from top-down view)
+        const pipeRadius = 5;
+        const pipeX = 0; // Center horizontally (between front tires)
+        const pipeY = -this.height / 4; // Position at the same level as front tires
+        
+        // Pipe outline (circle for top-down view)
+        ctx.fillStyle = '#444';
+        ctx.beginPath();
+        ctx.arc(pipeX, pipeY, pipeRadius, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Pipe inner circle
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(pipeX, pipeY, pipeRadius * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw smoke particles
+        for (const particle of this.smokeParticles) {
+            ctx.fillStyle = `rgba(200, 200, 200, ${particle.opacity})`;
+            ctx.beginPath();
+            ctx.arc(pipeX + particle.x, pipeY + particle.y, particle.size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // Draw rear wheels (fixed orientation) - now bigger
+        ctx.fillStyle = '#333';
+        
+        // Left rear wheel
+        ctx.fillRect(-this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2, 
+                    this.rearWheelWidth, this.rearWheelHeight);
+        
+        // Add wheel rim details for left wheel - rectangular pattern for top-down view
+        ctx.strokeStyle = '#777';
+        ctx.lineWidth = 1;
+        // Horizontal lines for tread pattern
+        for (let i = 1; i < 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.lineTo(-this.width / 2 + this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.stroke();
+        }
+        
+        // Right rear wheel
+        ctx.fillRect(this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2, 
+                    this.rearWheelWidth, this.rearWheelHeight);
+        
+        // Add wheel rim details for right wheel - rectangular pattern for top-down view
+        // Horizontal lines for tread pattern
+        for (let i = 1; i < 4; i++) {
+            ctx.beginPath();
+            ctx.moveTo(this.width / 2 - this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.lineTo(this.width / 2 + this.rearWheelWidth/2, this.height / 4 - this.rearWheelHeight/2 + i * (this.rearWheelHeight/4));
+            ctx.stroke();
+        }
         
         // Draw front wheels (with steering)
         ctx.save();
         // Front left wheel
         ctx.translate(-this.width / 2, -this.height / 4);
         ctx.rotate(this.wheelAngle);
-        ctx.fillRect(-5, -6, 10, 12);
+        ctx.fillRect(-this.frontWheelWidth/2, -this.frontWheelHeight/2, 
+                    this.frontWheelWidth, this.frontWheelHeight);
+        
+        // Add rectangular tread pattern for front left wheel
+        ctx.strokeStyle = '#777';
+        for (let i = 1; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.lineTo(this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.stroke();
+        }
         ctx.restore();
         
         ctx.save();
         // Front right wheel
         ctx.translate(this.width / 2, -this.height / 4);
         ctx.rotate(this.wheelAngle);
-        ctx.fillRect(-5, -6, 10, 12);
+        ctx.fillRect(-this.frontWheelWidth/2, -this.frontWheelHeight/2, 
+                    this.frontWheelWidth, this.frontWheelHeight);
+        
+        // Add rectangular tread pattern for front right wheel
+        for (let i = 1; i < 3; i++) {
+            ctx.beginPath();
+            ctx.moveTo(-this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.lineTo(this.frontWheelWidth/2, -this.frontWheelHeight/2 + i * (this.frontWheelHeight/3));
+            ctx.stroke();
+        }
         ctx.restore();
         
         // Draw a small indicator for the front of the tractor

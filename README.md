@@ -2,6 +2,10 @@
 
 A simple top-down tractor game where you control a tractor to push snow. Built with TypeScript and HTML5 Canvas.
 
+## Play Online
+
+You can play the game online at: [https://mokkatrukki.github.io/snowblow](https://mokkatrukki.github.io/snowblow)
+
 ## Features
 
 - Top-down tractor with 4 wheels
@@ -39,6 +43,15 @@ This will start a development server at http://localhost:3000 with hot reloading
 # Build for production
 npm run build
 ```
+
+### Deploying to GitHub Pages
+
+```bash
+# Deploy to GitHub Pages
+npm run deploy
+```
+
+This will build the project and deploy it to the gh-pages branch of your GitHub repository.
 
 ## Controls
 
