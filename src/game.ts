@@ -1,4 +1,4 @@
-import { Tractor } from './Tractor';
+import { Tractor } from './tractor';
 import { SnowSystem } from './Snow';
 import { ParkingArea } from './ParkingArea';
 
