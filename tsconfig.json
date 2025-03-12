@@ -1,11 +1,13 @@
 {
   "compilerOptions": {
-    "target": "es6",
-    "module": "es6",
+    "outDir": "./dist/",
+    "sourceMap": true,
     "strict": true,
-    "esModuleInterop": true,
-    "outDir": "./dist",
-    "sourceMap": true
-  },
-  "include": ["src/**/*"]
+    "module": "es6",
+    "target": "es5",
+    "jsx": "react",
+    "allowJs": true,
+    "moduleResolution": "node",
+    "forceConsistentCasingInFileNames": false
+  }
 } 
