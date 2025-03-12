@@ -65,11 +65,11 @@ export class SnowSystem {
     private parkingArea: { x: number, y: number, width: number, height: number } | null = null;
     private onSnowRemovedFromParkingArea: (() => void) | null = null;
 
-    constructor(canvasWidth: number, canvasHeight: number, density: number = 0.8) {
+    constructor(canvasWidth: number, canvasHeight: number, density: number = 1.6) {
         this.particles = [];
         this.canvasWidth = canvasWidth;
         this.canvasHeight = canvasHeight;
-        this.gridSize = 15; // Smaller grid cells for more dense snow
+        this.gridSize = 10; // Reduced grid size from 15 to 10 for more dense snow
         
         // Calculate number of particles based on canvas size and density
         const gridCellsX = Math.floor(canvasWidth / this.gridSize);
@@ -91,17 +91,20 @@ export class SnowSystem {
         // Create snow in every grid cell for complete coverage
         for (let gridY = 0; gridY < gridCellsY; gridY++) {
             for (let gridX = 0; gridX < gridCellsX; gridX++) {
-                // Add some randomness within the cell
-                const offsetX = Math.random() * this.gridSize;
-                const offsetY = Math.random() * this.gridSize;
-                
-                // Calculate final position
-                const x = gridX * this.gridSize + offsetX;
-                const y = gridY * this.gridSize + offsetY;
+                // Calculate positions for tile-like placement
+                const x = gridX * this.gridSize + this.gridSize / 4;
+                const y = gridY * this.gridSize + this.gridSize / 4;
                 
                 // Create snow particle with slightly varied size
-                const size = 7 + Math.random() * 3;
+                const size = 6 + Math.random() * 3;
                 this.particles.push(new SnowParticle(x, y, size));
+                
+                // Add a second particle in the same cell for 2x density
+                // Position it in the opposite corner for a tile-like pattern
+                const x2 = gridX * this.gridSize + 3 * this.gridSize / 4;
+                const y2 = gridY * this.gridSize + 3 * this.gridSize / 4;
+                const size2 = 5 + Math.random() * 3;
+                this.particles.push(new SnowParticle(x2, y2, size2));
             }
         }
     }
