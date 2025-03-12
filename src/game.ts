@@ -1,9 +1,11 @@
 import { Tractor } from './Tractor';
+import { SnowSystem } from './Snow';
 
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private tractor: Tractor;
+    private snowSystem: SnowSystem;
     private lastTimestamp: number = 0;
     private isRunning: boolean = false;
 
@@ -26,6 +28,9 @@ export class Game {
         // Create tractor at the center of the canvas
         this.tractor = new Tractor(this.canvas.width / 2, this.canvas.height / 2);
         
+        // Create snow system
+        this.snowSystem = new SnowSystem(this.canvas.width, this.canvas.height, 0.8);
+        
         // Set up keyboard controls
         this.setupControls();
     }
@@ -33,6 +38,11 @@ export class Game {
     private resizeCanvas(): void {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
+        
+        // Update snow system if it exists
+        if (this.snowSystem) {
+            this.snowSystem.resizeCanvas(this.canvas.width, this.canvas.height);
+        }
     }
 
     private setupControls(): void {
@@ -105,16 +115,33 @@ export class Game {
     }
 
     private update(deltaTime: number): void {
+        // Update tractor
         this.tractor.update();
+        
+        // Update snow
+        this.snowSystem.update();
+        
+        // Handle collisions between tractor's plow and snow
+        const auraPosition = this.tractor.getAuraPosition();
+        this.snowSystem.handleCollisionWithPlow(
+            auraPosition.x,
+            auraPosition.y,
+            auraPosition.width,
+            auraPosition.height,
+            auraPosition.angle
+        );
     }
 
     private render(): void {
         // Clear the canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // Draw background (could be snow field)
-        this.ctx.fillStyle = '#FFFFFF';
+        // Draw background (dark asphalt)
+        this.ctx.fillStyle = '#333333';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Draw snow
+        this.snowSystem.draw(this.ctx);
         
         // Draw tractor
         this.tractor.draw(this.ctx);
