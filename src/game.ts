@@ -97,42 +97,60 @@ export class Game {
             }
             
             switch (e.key) {
-                case 'ArrowUp':
+                // Tractor movement controls (WASD)
                 case 'w':
+                case 'W':
                     this.tractor.setMovement('forward', true);
                     break;
-                case 'ArrowDown':
                 case 's':
+                case 'S':
                     this.tractor.setMovement('backward', true);
                     break;
-                case 'ArrowLeft':
                 case 'a':
+                case 'A':
                     this.tractor.setTurning('left', true);
                     break;
-                case 'ArrowRight':
                 case 'd':
+                case 'D':
                     this.tractor.setTurning('right', true);
+                    break;
+                
+                // Snow plow controls (Arrow keys)
+                case 'ArrowLeft':
+                    this.tractor.setAuraTurning('left', true);
+                    break;
+                case 'ArrowRight':
+                    this.tractor.setAuraTurning('right', true);
                     break;
             }
         });
 
         window.addEventListener('keyup', (e) => {
             switch (e.key) {
-                case 'ArrowUp':
+                // Tractor movement controls (WASD)
                 case 'w':
+                case 'W':
                     this.tractor.setMovement('forward', false);
                     break;
-                case 'ArrowDown':
                 case 's':
+                case 'S':
                     this.tractor.setMovement('backward', false);
                     break;
-                case 'ArrowLeft':
                 case 'a':
+                case 'A':
                     this.tractor.setTurning('left', false);
                     break;
-                case 'ArrowRight':
                 case 'd':
+                case 'D':
                     this.tractor.setTurning('right', false);
+                    break;
+                
+                // Snow plow controls (Arrow keys)
+                case 'ArrowLeft':
+                    this.tractor.setAuraTurning('left', false);
+                    break;
+                case 'ArrowRight':
+                    this.tractor.setAuraTurning('right', false);
                     break;
             }
         });
@@ -246,11 +264,11 @@ export class Game {
         const padding = 20;
         
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        this.ctx.fillRect(padding, padding, 220, 120);
+        this.ctx.fillRect(padding, padding, 220, 160);
         
         this.ctx.strokeStyle = '#FFFFFF';
         this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(padding, padding, 220, 120);
+        this.ctx.strokeRect(padding, padding, 220, 160);
         
         this.ctx.fillStyle = '#FFFFFF';
         this.ctx.font = 'bold 16px Arial';
@@ -258,14 +276,16 @@ export class Game {
         this.ctx.fillText('Controls:', padding + 10, padding + 25);
         
         this.ctx.font = '14px Arial';
-        this.ctx.fillText('W / ↑ - Move Forward', padding + 10, padding + 50);
-        this.ctx.fillText('S / ↓ - Move Backward', padding + 10, padding + 70);
-        this.ctx.fillText('A / ← - Turn Left', padding + 10, padding + 90);
-        this.ctx.fillText('D / → - Turn Right', padding + 10, padding + 110);
+        this.ctx.fillText('W - Move Forward', padding + 10, padding + 50);
+        this.ctx.fillText('S - Move Backward', padding + 10, padding + 70);
+        this.ctx.fillText('A - Turn Left', padding + 10, padding + 90);
+        this.ctx.fillText('D - Turn Right', padding + 10, padding + 110);
+        this.ctx.fillText('← - Rotate Plow Left', padding + 10, padding + 130);
+        this.ctx.fillText('→ - Rotate Plow Right', padding + 10, padding + 150);
         
         if (this.gameWon) {
             this.ctx.font = 'bold 14px Arial';
-            this.ctx.fillText('R - Restart Game', padding + 10, padding + 130);
+            this.ctx.fillText('R - Restart Game', padding + 10, padding + 170);
         }
     }
 } 

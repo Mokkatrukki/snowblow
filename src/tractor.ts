@@ -19,6 +19,11 @@ export class Tractor {
     private auraWidth: number; // Width of the snow plow (aura)
     private auraHeight: number; // Height of the snow plow (aura)
     private auraColor: string; // Color of the snow plow (aura)
+    private auraAngle: number; // Angle of the snow plow relative to tractor
+    private maxAuraAngle: number; // Maximum angle the snow plow can rotate
+    private auraTurnSpeed: number; // How fast the snow plow turns
+    private isAuraTurningLeft: boolean; // Is the snow plow turning left
+    private isAuraTurningRight: boolean; // Is the snow plow turning right
     private isMovingForward: boolean;
     private isMovingBackward: boolean;
     private isTurningLeft: boolean;
@@ -28,25 +33,17 @@ export class Tractor {
     private frontWheelWidth: number; // Width of front wheels
     private frontWheelHeight: number; // Height of front wheels
     
-    // New physics-based steering properties
+    // Simple movement properties
+    private moveSpeed: number; // Base movement speed
+    private turnSpeed: number; // Base turning speed
     private wheelBase: number; // Distance between front and rear wheels
-    private velocity: { x: number, y: number }; // Current velocity vector
-    private acceleration: number; // Forward acceleration
-    private enginePower: number; // Forward acceleration force
-    private braking: number; // Braking force
-    private friction: number; // Friction force (proportional to velocity)
-    private drag: number; // Drag force (proportional to velocity squared)
-    private maxSpeedReverse: number; // Maximum reverse speed
-    private slipSpeed: number; // Speed where traction is reduced
-    private tractionFast: number; // High-speed traction
-    private tractionSlow: number; // Low-speed traction
 
     constructor(x: number, y: number) {
         this.x = x;
         this.y = y;
         this.width = 40;
         this.height = 60;
-        this.speed = 0; // Initial speed is 0
+        this.speed = 3; // Movement speed
         this.angle = 0; // in radians
         this.wheelAngle = 0; // in radians
         this.maxWheelAngle = Math.PI / 4; // 45 degrees
@@ -62,6 +59,11 @@ export class Tractor {
         this.auraWidth = 60; // Wider than the tractor
         this.auraHeight = 15; // Height of the snow plow
         this.auraColor = '#3A86FF'; // Blue color for the snow plow
+        this.auraAngle = 0; // Initial angle of snow plow (straight ahead)
+        this.maxAuraAngle = Math.PI / 6; // 30 degrees maximum rotation
+        this.auraTurnSpeed = 0.05; // How fast the snow plow turns
+        this.isAuraTurningLeft = false;
+        this.isAuraTurningRight = false;
         this.isMovingForward = false;
         this.isMovingBackward = false;
         this.isTurningLeft = false;
@@ -71,18 +73,10 @@ export class Tractor {
         this.frontWheelWidth = 10; // Front wheels width
         this.frontWheelHeight = 14; // Front wheels height
         
-        // Initialize new physics properties
-        this.wheelBase = 40; // Distance from front to rear wheel
-        this.velocity = { x: 0, y: 0 }; // Start with zero velocity
-        this.acceleration = 0;
-        this.enginePower = 300; // Forward acceleration force
-        this.braking = -150; // Braking force
-        this.friction = -0.9; // Friction force coefficient
-        this.drag = -0.001; // Drag force coefficient
-        this.maxSpeedReverse = 100; // Maximum reverse speed
-        this.slipSpeed = 200; // Speed where traction is reduced
-        this.tractionFast = 0.02; // High-speed traction (lower = more drift)
-        this.tractionSlow = 0.05; // Low-speed traction (higher = less drift)
+        // Simple movement properties
+        this.moveSpeed = 3.0; // Base movement speed
+        this.turnSpeed = 0.05; // Base turning speed
+        this.wheelBase = 40.0; // Distance between front and rear wheels - matches the height of the tractor
     }
 
     public setMovement(direction: 'forward' | 'backward' | 'none', state: boolean): void {
@@ -100,33 +94,57 @@ export class Tractor {
             this.isTurningRight = state;
         }
     }
+    
+    public setAuraTurning(direction: 'left' | 'right' | 'none', state: boolean): void {
+        if (direction === 'left') {
+            this.isAuraTurningLeft = state;
+        } else if (direction === 'right') {
+            this.isAuraTurningRight = state;
+        }
+    }
 
     public update(): void {
-        // Calculate acceleration based on input
-        this.acceleration = 0;
-        
-        // Get steering input
+        // Update wheel angle based on turning input
         this.updateSteering();
         
-        // Apply acceleration based on input
+        // Update snow plow angle
+        this.updateAuraAngle();
+        
+        // Calculate speed based on input
+        let currentSpeed = 0;
         if (this.isMovingForward) {
-            this.acceleration = this.enginePower;
+            currentSpeed = this.moveSpeed;
         } else if (this.isMovingBackward) {
-            this.acceleration = this.braking;
+            currentSpeed = -this.moveSpeed; // Negative speed for reverse
         }
         
-        // Apply friction and drag
-        this.applyFriction();
-        
-        // Calculate steering based on wheel positions
-        this.calculateSteering();
-        
-        // Update position based on velocity
-        this.x += this.velocity.x;
-        this.y += this.velocity.y;
-        
-        // Calculate speed from velocity
-        this.speed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.y * this.velocity.y);
+        // Only update position if moving
+        if (currentSpeed !== 0) {
+            // BICYCLE MODEL PHYSICS (6 lines as described in the article)
+            // 1. Find the world position of front and back wheels
+            const frontWheel = {
+                x: this.x + (this.wheelBase / 2) * Math.sin(this.angle),
+                y: this.y - (this.wheelBase / 2) * Math.cos(this.angle)
+            };
+            const backWheel = {
+                x: this.x - (this.wheelBase / 2) * Math.sin(this.angle),
+                y: this.y + (this.wheelBase / 2) * Math.cos(this.angle)
+            };
+            
+            // 2. Move each wheel forward in the direction it is pointing
+            // Back wheel moves in car heading direction
+            backWheel.x += currentSpeed * Math.sin(this.angle);
+            backWheel.y -= currentSpeed * Math.cos(this.angle);
+            
+            // Front wheel moves in steering direction
+            frontWheel.x += currentSpeed * Math.sin(this.angle + this.wheelAngle);
+            frontWheel.y -= currentSpeed * Math.cos(this.angle + this.wheelAngle);
+            
+            // 3. Calculate new car position and heading from new wheel positions
+            this.x = (frontWheel.x + backWheel.x) / 2;
+            this.y = (frontWheel.y + backWheel.y) / 2;
+            this.angle = Math.atan2(frontWheel.y - backWheel.y, frontWheel.x - backWheel.x) + Math.PI/2;
+        }
         
         // Update warning light - just rotate, no blinking
         this.warningLightAngle += 0.1;
@@ -167,123 +185,38 @@ export class Tractor {
     }
     
     private updateSteering(): void {
-        // Use different turn speeds based on whether the tractor is moving or stationary
-        const isMoving = this.speed > 0.5;
-        const currentTurnSpeed = isMoving ? this.movingTurnSpeed : this.stationaryTurnSpeed;
-        
         // Update wheel angle based on turning input
         if (this.isTurningLeft) {
-            this.wheelAngle = Math.max(this.wheelAngle - currentTurnSpeed, -this.maxWheelAngle);
+            this.wheelAngle = Math.max(this.wheelAngle - this.wheelTurnSpeed, -this.maxWheelAngle);
         } else if (this.isTurningRight) {
-            this.wheelAngle = Math.min(this.wheelAngle + currentTurnSpeed, this.maxWheelAngle);
+            this.wheelAngle = Math.min(this.wheelAngle + this.wheelTurnSpeed, this.maxWheelAngle);
         } else {
             // Return wheels to center when not turning
             if (this.wheelAngle > 0) {
-                this.wheelAngle = Math.max(0, this.wheelAngle - currentTurnSpeed / 2);
+                this.wheelAngle = Math.max(0, this.wheelAngle - this.wheelTurnSpeed / 2);
             } else if (this.wheelAngle < 0) {
-                this.wheelAngle = Math.min(0, this.wheelAngle + currentTurnSpeed / 2);
+                this.wheelAngle = Math.min(0, this.wheelAngle + this.wheelTurnSpeed / 2);
             }
         }
     }
     
-    private applyFriction(): void {
-        // If no acceleration and very low speed, stop completely
-        if (this.acceleration === 0 && this.speed < 0.5) {
-            this.velocity.x = 0;
-            this.velocity.y = 0;
-            return;
-        }
-        
-        // Calculate friction force (proportional to velocity)
-        const frictionForce = {
-            x: this.velocity.x * this.friction,
-            y: this.velocity.y * this.friction
-        };
-        
-        // Calculate drag force (proportional to velocity squared)
-        const dragForce = {
-            x: this.velocity.x * this.speed * this.drag,
-            y: this.velocity.y * this.speed * this.drag
-        };
-        
-        // Apply forces to velocity
-        this.velocity.x += frictionForce.x + dragForce.x;
-        this.velocity.y += frictionForce.y + dragForce.y;
-    }
-    
-    private calculateSteering(): void {
-        // Find the wheel positions
-        const rearWheel = {
-            x: this.x - Math.sin(this.angle) * (this.wheelBase / 2),
-            y: this.y + Math.cos(this.angle) * (this.wheelBase / 2)
-        };
-        
-        const frontWheel = {
-            x: this.x + Math.sin(this.angle) * (this.wheelBase / 2),
-            y: this.y - Math.cos(this.angle) * (this.wheelBase / 2)
-        };
-        
-        // Apply acceleration in the direction the tractor is facing
-        const accelerationVector = {
-            x: Math.sin(this.angle) * this.acceleration,
-            y: -Math.cos(this.angle) * this.acceleration
-        };
-        
-        // Add acceleration to velocity
-        this.velocity.x += accelerationVector.x;
-        this.velocity.y += accelerationVector.y;
-        
-        // Move wheels forward
-        rearWheel.x += this.velocity.x;
-        rearWheel.y += this.velocity.y;
-        
-        // Calculate front wheel position with steering
-        const steeringDirection = this.angle + this.wheelAngle;
-        frontWheel.x += this.velocity.x * Math.cos(this.wheelAngle) + 
-                        this.velocity.y * Math.sin(this.wheelAngle);
-        frontWheel.y += this.velocity.y * Math.cos(this.wheelAngle) - 
-                        this.velocity.x * Math.sin(this.wheelAngle);
-        
-        // Find new heading direction
-        const newHeading = Math.atan2(
-            frontWheel.x - rearWheel.x,
-            -(frontWheel.y - rearWheel.y)
-        );
-        
-        // Choose traction based on speed
-        const traction = this.speed > this.slipSpeed ? this.tractionFast : this.tractionSlow;
-        
-        // Check if we're moving forward or backward
-        const velocityMagnitude = this.speed;
-        const velocityDirection = Math.atan2(this.velocity.x, -this.velocity.y);
-        const headingDot = Math.cos(velocityDirection - this.angle);
-        
-        if (headingDot >= 0) {
-            // Moving forward - gradually adjust velocity toward new heading
-            const newVelocityDirection = newHeading;
-            const newVelocity = {
-                x: Math.sin(newVelocityDirection) * velocityMagnitude,
-                y: -Math.cos(newVelocityDirection) * velocityMagnitude
-            };
-            
-            // Interpolate between current velocity and new velocity based on traction
-            this.velocity.x = this.velocity.x * (1 - traction) + newVelocity.x * traction;
-            this.velocity.y = this.velocity.y * (1 - traction) + newVelocity.y * traction;
+    private updateAuraAngle(): void {
+        // Update snow plow angle based on turning input
+        if (this.isAuraTurningLeft) {
+            this.auraAngle = Math.max(this.auraAngle - this.auraTurnSpeed, -this.maxAuraAngle);
+        } else if (this.isAuraTurningRight) {
+            this.auraAngle = Math.min(this.auraAngle + this.auraTurnSpeed, this.maxAuraAngle);
         } else {
-            // Moving backward - reverse steering
-            const newVelocityDirection = newHeading + Math.PI;
-            const newVelocity = {
-                x: Math.sin(newVelocityDirection) * Math.min(velocityMagnitude, this.maxSpeedReverse),
-                y: -Math.cos(newVelocityDirection) * Math.min(velocityMagnitude, this.maxSpeedReverse)
-            };
-            
-            // Interpolate between current velocity and new velocity based on traction
-            this.velocity.x = this.velocity.x * (1 - traction) + newVelocity.x * traction;
-            this.velocity.y = this.velocity.y * (1 - traction) + newVelocity.y * traction;
+            // Optionally, return snow plow to center when not turning
+            // Uncomment the following code if you want the plow to auto-center
+            /*
+            if (this.auraAngle > 0) {
+                this.auraAngle = Math.max(0, this.auraAngle - this.auraTurnSpeed / 2);
+            } else if (this.auraAngle < 0) {
+                this.auraAngle = Math.min(0, this.auraAngle + this.auraTurnSpeed / 2);
+            }
+            */
         }
-        
-        // Update tractor angle to match new heading
-        this.angle = newHeading;
     }
 
     public draw(ctx: CanvasRenderingContext2D): void {
@@ -293,23 +226,29 @@ export class Tractor {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
         
-        // Draw snow plow (aura) at the front
+        // Draw snow plow (aura) at the front with its own rotation
+        ctx.save();
+        // Position at the front of the tractor
+        ctx.translate(0, -this.height / 2 - this.auraHeight / 2);
+        // Apply the aura's rotation
+        ctx.rotate(this.auraAngle);
+        
         ctx.fillStyle = this.auraColor;
         // Main plow body
-        ctx.fillRect(-this.auraWidth / 2, -this.height / 2 - this.auraHeight, this.auraWidth, this.auraHeight);
+        ctx.fillRect(-this.auraWidth / 2, -this.auraHeight / 2, this.auraWidth, this.auraHeight);
         
         // Draw angled edges for the plow
         ctx.beginPath();
-        ctx.moveTo(-this.auraWidth / 2, -this.height / 2 - this.auraHeight);
-        ctx.lineTo(-this.auraWidth / 2 - 10, -this.height / 2);
-        ctx.lineTo(-this.auraWidth / 2, -this.height / 2);
+        ctx.moveTo(-this.auraWidth / 2, -this.auraHeight / 2);
+        ctx.lineTo(-this.auraWidth / 2 - 10, this.auraHeight / 2);
+        ctx.lineTo(-this.auraWidth / 2, this.auraHeight / 2);
         ctx.closePath();
         ctx.fill();
         
         ctx.beginPath();
-        ctx.moveTo(this.auraWidth / 2, -this.height / 2 - this.auraHeight);
-        ctx.lineTo(this.auraWidth / 2 + 10, -this.height / 2);
-        ctx.lineTo(this.auraWidth / 2, -this.height / 2);
+        ctx.moveTo(this.auraWidth / 2, -this.auraHeight / 2);
+        ctx.lineTo(this.auraWidth / 2 + 10, this.auraHeight / 2);
+        ctx.lineTo(this.auraWidth / 2, this.auraHeight / 2);
         ctx.closePath();
         ctx.fill();
         
@@ -317,9 +256,23 @@ export class Tractor {
         ctx.strokeStyle = '#2667FF';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(-this.auraWidth / 2 + 5, -this.height / 2 - this.auraHeight / 2);
-        ctx.lineTo(this.auraWidth / 2 - 5, -this.height / 2 - this.auraHeight / 2);
+        ctx.moveTo(-this.auraWidth / 2 + 5, 0);
+        ctx.lineTo(this.auraWidth / 2 - 5, 0);
         ctx.stroke();
+        
+        // Draw hydraulic arms connecting the plow to the tractor
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        // Left arm
+        ctx.moveTo(-this.auraWidth / 3, this.auraHeight / 2);
+        ctx.lineTo(-this.width / 3, this.auraHeight * 2);
+        // Right arm
+        ctx.moveTo(this.auraWidth / 3, this.auraHeight / 2);
+        ctx.lineTo(this.width / 3, this.auraHeight * 2);
+        ctx.stroke();
+        
+        ctx.restore(); // Restore after drawing the rotated plow
         
         // Draw tractor body
         ctx.fillStyle = this.color;
@@ -472,12 +425,15 @@ export class Tractor {
         const auraX = this.x + Math.sin(this.angle) * (this.height / 2 + this.auraHeight / 2);
         const auraY = this.y - Math.cos(this.angle) * (this.height / 2 + this.auraHeight / 2);
         
+        // Include both the tractor angle and the aura's own angle
+        const totalAngle = this.angle + this.auraAngle;
+        
         return {
             x: auraX,
             y: auraY,
             width: this.auraWidth,
             height: this.auraHeight,
-            angle: this.angle
+            angle: totalAngle
         };
     }
 
@@ -490,5 +446,9 @@ export class Tractor {
             width: this.width,
             height: this.height
         };
+    }
+    
+    public getAuraAngle(): number {
+        return this.auraAngle;
     }
 } 
