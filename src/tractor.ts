@@ -176,4 +176,11 @@ export class Tractor {
     public getPosition(): { x: number, y: number } {
         return { x: this.x, y: this.y };
     }
+
+    public getSize(): { width: number, height: number } {
+        return {
+            width: this.width,
+            height: this.height
+        };
+    }
 } 

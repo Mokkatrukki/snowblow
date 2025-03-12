@@ -8,6 +8,8 @@ export class SnowParticle {
     public friction: number;
     public shadowColor: string;
     public borderColor: string;
+    public isInParkingArea: boolean;
+    public wasRemovedFromParkingArea: boolean;
 
     constructor(x: number, y: number, size: number = 8) {
         this.x = x;
@@ -19,6 +21,8 @@ export class SnowParticle {
         this.velocity = { x: 0, y: 0 };
         this.isMoving = false;
         this.friction = 0.95; // Friction to slow down moving snow
+        this.isInParkingArea = false;
+        this.wasRemovedFromParkingArea = false;
     }
 
     public update(): void {
@@ -58,6 +62,8 @@ export class SnowSystem {
     private canvasWidth: number;
     private canvasHeight: number;
     private gridSize: number;
+    private parkingArea: { x: number, y: number, width: number, height: number } | null = null;
+    private onSnowRemovedFromParkingArea: (() => void) | null = null;
 
     constructor(canvasWidth: number, canvasHeight: number, density: number = 0.8) {
         this.particles = [];
@@ -102,7 +108,25 @@ export class SnowSystem {
 
     public update(): void {
         for (const particle of this.particles) {
+            const wasInParkingArea = particle.isInParkingArea;
+            
+            // Update particle position
             particle.update();
+            
+            // Check if particle is in parking area
+            if (this.parkingArea) {
+                const isNowInParkingArea = this.isParticleInParkingArea(particle);
+                
+                // If particle was in parking area but now isn't, and hasn't been counted yet
+                if (wasInParkingArea && !isNowInParkingArea && !particle.wasRemovedFromParkingArea) {
+                    particle.wasRemovedFromParkingArea = true;
+                    if (this.onSnowRemovedFromParkingArea) {
+                        this.onSnowRemovedFromParkingArea();
+                    }
+                }
+                
+                particle.isInParkingArea = isNowInParkingArea;
+            }
         }
     }
 
@@ -160,5 +184,30 @@ export class SnowSystem {
         
         // Regenerate snow for the new canvas size
         this.generateSnow();
+    }
+
+    public setParkingArea(area: { x: number, y: number, width: number, height: number }, callback: () => void): number {
+        this.parkingArea = area;
+        this.onSnowRemovedFromParkingArea = callback;
+        
+        // Count initial snow particles in the parking area
+        let count = 0;
+        for (const particle of this.particles) {
+            if (this.isParticleInParkingArea(particle)) {
+                particle.isInParkingArea = true;
+                count++;
+            }
+        }
+        
+        return count;
+    }
+    
+    private isParticleInParkingArea(particle: SnowParticle): boolean {
+        if (!this.parkingArea) return false;
+        
+        return particle.x >= this.parkingArea.x && 
+               particle.x <= this.parkingArea.x + this.parkingArea.width &&
+               particle.y >= this.parkingArea.y && 
+               particle.y <= this.parkingArea.y + this.parkingArea.height;
     }
 } 

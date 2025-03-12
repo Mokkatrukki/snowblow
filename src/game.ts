@@ -1,13 +1,16 @@
 import { Tractor } from './Tractor';
 import { SnowSystem } from './Snow';
+import { ParkingArea } from './ParkingArea';
 
 export class Game {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private tractor: Tractor;
     private snowSystem: SnowSystem;
+    private parkingArea: ParkingArea;
     private lastTimestamp: number = 0;
     private isRunning: boolean = false;
+    private gameWon: boolean = false;
 
     constructor(canvasId: string) {
         this.canvas = document.getElementById(canvasId) as HTMLCanvasElement;
@@ -25,14 +28,37 @@ export class Game {
         this.resizeCanvas();
         window.addEventListener('resize', () => this.resizeCanvas());
         
-        // Create tractor at the center of the canvas
-        this.tractor = new Tractor(this.canvas.width / 2, this.canvas.height / 2);
+        // Create parking area (6 times the size of a standard tractor)
+        const tractorWidth = 40;
+        const tractorHeight = 60;
+        const parkingWidth = tractorWidth * 6;
+        const parkingHeight = tractorHeight * 6;
+        const parkingX = this.canvas.width / 2 - parkingWidth / 2;
+        const parkingY = this.canvas.height / 2 - parkingHeight / 2;
+        
+        this.parkingArea = new ParkingArea(parkingX, parkingY, parkingWidth, parkingHeight);
+        
+        // Create tractor outside the parking area (above the parking area)
+        const tractorX = parkingX + parkingWidth / 2; // Center horizontally
+        const tractorY = parkingY - tractorHeight * 2; // Position above the parking area
+        this.tractor = new Tractor(tractorX, tractorY);
         
         // Create snow system
         this.snowSystem = new SnowSystem(this.canvas.width, this.canvas.height, 0.8);
         
+        // Set up the parking area in the snow system
+        const initialSnowCount = this.snowSystem.setParkingArea(
+            this.parkingArea.getPosition(),
+            () => this.parkingArea.removeSnowParticle()
+        );
+        
+        // Set the total snow particles in the parking area
+        this.parkingArea.setTotalSnowParticles(initialSnowCount);
+        
         // Set up keyboard controls
         this.setupControls();
+        
+        this.gameWon = false;
     }
 
     private resizeCanvas(): void {
@@ -115,6 +141,8 @@ export class Game {
     }
 
     private update(deltaTime: number): void {
+        if (this.gameWon) return;
+        
         // Update tractor
         this.tractor.update();
         
@@ -130,6 +158,12 @@ export class Game {
             auraPosition.height,
             auraPosition.angle
         );
+        
+        // Check if the parking area is cleared
+        if (this.parkingArea.isCleared()) {
+            this.gameWon = true;
+            console.log("Congratulations! You've cleared the parking area!");
+        }
     }
 
     private render(): void {
@@ -143,7 +177,38 @@ export class Game {
         // Draw snow
         this.snowSystem.draw(this.ctx);
         
+        // Draw parking area
+        this.parkingArea.draw(this.ctx);
+        
         // Draw tractor
         this.tractor.draw(this.ctx);
+        
+        // Draw win message if game is won
+        if (this.gameWon) {
+            this.drawWinMessage();
+        }
+    }
+    
+    private drawWinMessage(): void {
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 3;
+        
+        // Draw semi-transparent background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(centerX - 200, centerY - 50, 400, 100);
+        
+        // Draw border
+        this.ctx.strokeStyle = '#FFFFFF';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(centerX - 200, centerY - 50, 400, 100);
+        
+        // Draw text
+        this.ctx.fillStyle = '#FFFFFF';
+        this.ctx.font = 'bold 30px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('Parking Area Cleared!', centerX, centerY);
+        
+        this.ctx.font = '20px Arial';
+        this.ctx.fillText('Great job, snow plow driver!', centerX, centerY + 30);
     }
 } 
